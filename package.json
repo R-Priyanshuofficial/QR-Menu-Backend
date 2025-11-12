@@ -1,0 +1,51 @@
+{
+  "name": "qr-menu-backend",
+  "version": "1.0.0",
+  "description": "Backend API for QR Menu Application",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "kill-port": "powershell -ExecutionPolicy Bypass -File kill-port.ps1",
+    "dev:clean": "npm run kill-port && npm run dev",
+    "verify-printer": "node verify-printer-setup.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "qr",
+    "menu",
+    "restaurant",
+    "api"
+  ],
+  "author": "R-Priyanshuofficial",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "escpos": "^3.0.0-alpha.6",
+    "escpos-usb": "^3.0.0-alpha.4",
+    "escpos-network": "^3.0.0-alpha.1",
+    "express": "^4.18.2",
+    "express-validator": "^7.0.1",
+    "groq-sdk": "^0.34.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.0.3",
+    "multer": "^2.0.2",
+    "node-thermal-printer": "^4.4.4",
+    "openai": "^6.6.0",
+    "pdf-parse": "^2.4.5",
+    "qrcode": "^1.5.3",
+    "serialport": "^12.0.0",
+    "sharp": "^0.34.4",
+    "socket.io": "^4.8.1",
+    "tesseract.js": "^6.0.1",
+    "twilio": "^5.10.4",
+    "uuid": "^9.0.1",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
