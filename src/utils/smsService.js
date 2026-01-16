@@ -6,11 +6,17 @@ const TWILIO_ENABLED = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH
 
 if (TWILIO_ENABLED) {
   try {
-    twilioClient = twilio(
-      process.env.TWILIO_ACCOUNT_SID,
-      process.env.TWILIO_AUTH_TOKEN
-    );
-    console.log('✅ Twilio SMS service initialized');
+    // Validate Account SID format
+    if (!process.env.TWILIO_ACCOUNT_SID.startsWith('AC')) {
+      console.warn('⚠️ Twilio Account SID must start with "AC". Skipping Twilio initialization.');
+      twilioClient = null;
+    } else {
+      twilioClient = twilio(
+        process.env.TWILIO_ACCOUNT_SID,
+        process.env.TWILIO_AUTH_TOKEN
+      );
+      console.log('✅ Twilio SMS service initialized');
+    }
   } catch (error) {
     console.error('❌ Twilio initialization failed:', error.message);
   }

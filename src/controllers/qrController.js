@@ -1,14 +1,14 @@
 const QRCode = require('../models/QRCode');
-const qrcode = require('qrcode');
 const { v4: uuidv4 } = require('uuid');
 const ApiError = require('../utils/ApiError');
+const { generateCustomizedQR, bufferToDataURL } = require('../services/qrService');
 
 // @desc    Generate QR Code
 // @route   POST /api/qr/generate
 // @access  Private
 exports.generateQR = async (req, res, next) => {
   try {
-    const { name, type, tableNumber } = req.body;
+    const { name, type, tableNumber, customization } = req.body;
     const userId = req.user.id;
 
     // Check for duplicate table number
@@ -32,21 +32,25 @@ exports.generateQR = async (req, res, next) => {
     const menuSlug = req.user.restaurantName
       ? req.user.restaurantName.toLowerCase().replace(/\s+/g, '-')
       : 'menu';
-    // Prefer the frontend origin from the request (admin app) if provided,
-    // otherwise fall back to env variable, then localhost for development.
     const requestOrigin = (req.headers.origin || '').replace(/\/$/, '');
     const frontendBase = (process.env.FRONTEND_APP_URL || requestOrigin || 'http://localhost:3000');
     const url = `${frontendBase}/m/${menuSlug}/q/${token}`;
 
-    // Generate QR code as data URL
-    const qrCodeData = await qrcode.toDataURL(url, {
-      width: 300,
-      margin: 2,
-      color: {
-        dark: '#000000',
-        light: '#FFFFFF'
-      }
-    });
+    // Prepare customization options
+    const qrCustomization = {
+      qrColor: customization?.qrColor || '#000000',
+      backgroundColor: customization?.backgroundColor || '#FFFFFF',
+      logoUrl: customization?.logoUrl || null,
+      avatarId: customization?.avatarId || null,
+      borderStyle: customization?.borderStyle || 'none',
+      borderColor: customization?.borderColor || '#000000',
+      showTableNumber: type === 'table' && customization?.showTableNumber === true,
+      tableNumber: type === 'table' ? tableNumber : null
+    };
+
+    // Generate customized QR code
+    const qrBuffer = await generateCustomizedQR(url, qrCustomization);
+    const qrCodeData = bufferToDataURL(qrBuffer);
 
     // Save to database
     const qrCodeDoc = await QRCode.create({
@@ -56,7 +60,16 @@ exports.generateQR = async (req, res, next) => {
       tableNumber: type === 'table' ? tableNumber : null,
       token,
       qrCodeData,
-      url
+      url,
+      customization: {
+        logoUrl: qrCustomization.logoUrl,
+        borderStyle: qrCustomization.borderStyle,
+        borderColor: qrCustomization.borderColor,
+        qrColor: qrCustomization.qrColor,
+        backgroundColor: qrCustomization.backgroundColor,
+        showTableNumber: qrCustomization.showTableNumber,
+        avatarId: qrCustomization.avatarId
+      }
     });
 
     res.status(201).json({
@@ -71,6 +84,7 @@ exports.generateQR = async (req, res, next) => {
           token: qrCodeDoc.token,
           url: qrCodeDoc.url,
           qrCodeData: qrCodeDoc.qrCodeData,
+          customization: qrCodeDoc.customization,
           createdAt: qrCodeDoc.createdAt
         }
       }
@@ -85,7 +99,9 @@ exports.generateQR = async (req, res, next) => {
 // @access  Private
 exports.getAllQRCodes = async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.role === 'staff' && req.user.ownerId
+      ? req.user.ownerId
+      : req.user._id;
 
     const qrCodes = await QRCode.find({ userId, isActive: true })
       .sort({ createdAt: -1 });
@@ -197,3 +213,29 @@ exports.trackScan = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Get available avatars
+// @route   GET /api/qr/avatars
+// @access  Public
+exports.getAvatars = async (req, res, next) => {
+  try {
+    const avatars = [
+      { id: 'chef', name: 'Chef Hat', url: '/avatars/chef.png' },
+      { id: 'fork-knife', name: 'Fork & Knife', url: '/avatars/fork-knife.png' },
+      { id: 'pizza', name: 'Pizza', url: '/avatars/pizza.png' },
+      { id: 'burger', name: 'Burger', url: '/avatars/burger.png' },
+      { id: 'coffee', name: 'Coffee', url: '/avatars/coffee.png' },
+      { id: 'plate', name: 'Plate', url: '/avatars/plate.png' },
+      { id: 'wine', name: 'Wine Glass', url: '/avatars/wine.png' },
+      { id: 'cake', name: 'Cake', url: '/avatars/cake.png' }
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: { avatars }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

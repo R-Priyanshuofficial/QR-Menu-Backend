@@ -50,10 +50,19 @@ exports.register = async (req, res, next) => {
 // @access  Public
 exports.login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email: identifier, password, role: requestedRole } = req.body;
 
-    // Find user with password
-    const user = await User.findOne({ email }).select('+password');
+    if (!identifier) {
+      throw new ApiError('Email or phone is required', 400);
+    }
+
+    // Find user by email (if contains @) or by phone otherwise
+    let user = null;
+    if (identifier.includes('@')) {
+      user = await User.findOne({ email: identifier }).select('+password');
+    } else {
+      user = await User.findOne({ phone: identifier }).select('+password');
+    }
 
     if (!user) {
       throw new ApiError('Invalid email or password', 401);
@@ -70,6 +79,19 @@ exports.login = async (req, res, next) => {
       throw new ApiError('Invalid email or password', 401);
     }
 
+    // If frontend specified a login mode (owner/staff), enforce it
+    if (requestedRole && user.role && requestedRole !== user.role) {
+      // Do not leak too much info but give a useful message
+      if (requestedRole === 'staff' && user.role !== 'staff') {
+        throw new ApiError('This account is an owner account. Please use the Owner tab to login.', 403);
+      }
+      if (requestedRole === 'owner' && user.role === 'staff') {
+        throw new ApiError('This account is a staff account. Please use the Staff tab to login.', 403);
+      }
+
+      throw new ApiError('This account cannot be used with the selected login type.', 403);
+    }
+
     // Generate token
     const token = generateToken(user._id);
 
@@ -82,7 +104,8 @@ exports.login = async (req, res, next) => {
           name: user.name,
           email: user.email,
           restaurantName: user.restaurantName,
-          role: user.role
+          role: user.role,
+          permissions: user.permissions || []
         },
         token
       }

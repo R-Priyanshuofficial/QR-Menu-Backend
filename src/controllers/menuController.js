@@ -37,10 +37,10 @@ async function preprocessImage(buffer, mimetype) {
       .greyscale() // Convert to grayscale
       .normalize() // Normalize contrast
       .sharpen(); // Sharpen text
-    
+
     // Convert based on MIME type
     const mimeTypeLower = mimetype.toLowerCase();
-    
+
     if (mimeTypeLower.includes('jpeg') || mimeTypeLower.includes('jpg')) {
       return await enhanced.jpeg({ quality: 95 }).toBuffer();
     } else if (mimeTypeLower.includes('png')) {
@@ -93,9 +93,9 @@ Rules:
     // Try Gemini Vision (FREE & Best for images!)
     if (AI_PROVIDER === 'gemini' && gemini) {
       console.log('🖼️  Using Gemini 2.0 Flash Vision (FREE) - Direct image analysis');
-      
+
       try {
-        const model = gemini.getGenerativeModel({ 
+        const model = gemini.getGenerativeModel({
           model: 'gemini-2.0-flash-exp',
           generationConfig: {
             temperature: 0.1,
@@ -104,7 +104,7 @@ Rules:
             topK: 40
           }
         });
-        
+
         // Prepare image data for Gemini
         const imageData = {
           inlineData: {
@@ -112,11 +112,11 @@ Rules:
             mimeType: mimetype
           }
         };
-        
+
         const result = await model.generateContent([prompt, imageData]);
         const response = await result.response;
         responseText = response.text();
-        
+
         console.log('✅ Gemini Vision analysis complete');
       } catch (geminiError) {
         console.error('Gemini Vision error:', geminiError.message);
@@ -126,7 +126,7 @@ Rules:
     // Try OpenAI Vision (GPT-4 Vision)
     else if (AI_PROVIDER === 'openai' && openai) {
       console.log('🖼️  Using OpenAI GPT-4 Vision');
-      
+
       try {
         const base64Image = imageBuffer.toString('base64');
         const completion = await openai.chat.completions.create({
@@ -157,7 +157,7 @@ Rules:
     // Try Groq Vision (Llama 3.2 Vision)
     else if (AI_PROVIDER === 'groq' && groq) {
       console.log('🖼️  Using Groq Llama 3.2 Vision (FREE)');
-      
+
       try {
         const base64Image = imageBuffer.toString('base64');
         const completion = await groq.chat.completions.create({
@@ -195,7 +195,7 @@ Rules:
     // Clean response - remove markdown code blocks if present
     let cleanedText = responseText.trim();
     cleanedText = cleanedText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-    
+
     // Extract JSON from response
     const jsonMatch = cleanedText.match(/\[([\s\S]*?)\]/);
     if (jsonMatch) {
@@ -214,7 +214,7 @@ Rules:
         return null;
       }
     }
-    
+
     return null;
   } catch (error) {
     console.error('AI Vision parsing error:', error.message);
@@ -254,10 +254,10 @@ ${extractedText}`;
     // Try Gemini first (FREE!)
     if (AI_PROVIDER === 'gemini' && gemini) {
       console.log('Using Google Gemini 2.0 Flash (FREE)');
-      
+
       try {
         // Use Gemini 2.0 Flash - optimized for menu parsing
-        const model = gemini.getGenerativeModel({ 
+        const model = gemini.getGenerativeModel({
           model: 'gemini-2.0-flash-exp', // Latest Gemini 2.0 experimental
           generationConfig: {
             temperature: 0.1,        // Low temperature for consistent output
@@ -266,11 +266,11 @@ ${extractedText}`;
             topK: 40
           }
         });
-        
+
         const result = await model.generateContent(prompt);
         const response = await result.response;
         responseText = response.text();
-        
+
         console.log('✅ Gemini 2.0 response received');
       } catch (geminiError) {
         console.error('Gemini API error:', geminiError.message);
@@ -310,7 +310,7 @@ ${extractedText}`;
     // Clean response - remove markdown code blocks if present
     let cleanedText = responseText.trim();
     cleanedText = cleanedText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-    
+
     // Extract JSON from response
     const jsonMatch = cleanedText.match(/\[([\s\S]*?)\]/);
     if (jsonMatch) {
@@ -329,7 +329,7 @@ ${extractedText}`;
         return null;
       }
     }
-    
+
     return null;
   } catch (error) {
     console.error('AI parsing error:', error.message);
@@ -355,14 +355,14 @@ exports.uploadMenuWithOCR = async (req, res, next) => {
     if (file.mimetype.startsWith('image/')) {
       console.log('📷 Image uploaded, attempting AI Vision parsing...');
       console.log('Original file size:', (file.buffer.length / 1024).toFixed(2), 'KB');
-      
+
       // Try AI Vision first (pass image directly to AI)
       parsedItems = await parseMenuWithAIVision(file.buffer, file.mimetype);
-      
+
       // If AI Vision succeeds, we're done!
       if (parsedItems && parsedItems.length > 0) {
         console.log(`🎉 AI Vision successfully extracted ${parsedItems.length} items!`);
-        
+
         return res.status(200).json({
           success: true,
           message: `Found ${parsedItems.length} menu items using AI Vision. Please review and confirm.`,
@@ -373,12 +373,12 @@ exports.uploadMenuWithOCR = async (req, res, next) => {
           }
         });
       }
-      
+
       // If AI Vision fails, fall back to OCR + AI parsing
       console.log('⚠️ AI Vision failed, falling back to OCR...');
-      
+
       let processedBuffer = file.buffer;
-      
+
       // Try preprocessing, fall back to original if it fails
       try {
         console.log(`Preprocessing ${file.mimetype} image...`);
@@ -388,7 +388,7 @@ exports.uploadMenuWithOCR = async (req, res, next) => {
         console.error('Preprocessing failed, using original image:', preprocessError.message);
         processedBuffer = file.buffer;
       }
-      
+
       console.log('Running OCR with Tesseract...');
       try {
         const result = await Tesseract.recognize(processedBuffer, 'eng', {
@@ -412,7 +412,7 @@ exports.uploadMenuWithOCR = async (req, res, next) => {
           throw ocrError;
         }
       }
-    } 
+    }
     // Handle PDF files (use text extraction + AI parsing)
     else if (file.mimetype === 'application/pdf') {
       console.log('📄 PDF uploaded, extracting text...');
@@ -421,7 +421,7 @@ exports.uploadMenuWithOCR = async (req, res, next) => {
         const pdfData = await pdf(dataBuffer);
         extractedText = pdfData.text;
         console.log('✅ PDF text extracted. Text length:', extractedText.length);
-        
+
         if (!extractedText || extractedText.trim().length < 10) {
           throw new ApiError('Could not extract readable text from PDF. The PDF might be image-based or encrypted.', 400);
         }
@@ -429,7 +429,7 @@ exports.uploadMenuWithOCR = async (req, res, next) => {
         console.error('PDF parsing error:', pdfError.message);
         throw new ApiError('Failed to parse PDF file. Please ensure it contains text or try converting to an image format.', 400);
       }
-    } 
+    }
     else {
       throw new ApiError('Unsupported file type. Please upload an image or PDF', 400);
     }
@@ -437,9 +437,9 @@ exports.uploadMenuWithOCR = async (req, res, next) => {
     // Try AI text parsing (for OCR'd text or PDF text)
     console.log('Attempting AI-powered text parsing...');
     console.log('Extracted text preview:', extractedText.substring(0, 200));
-    
+
     parsedItems = await parseMenuWithAI(extractedText);
-    
+
     // Fall back to basic parsing if AI fails
     if (!parsedItems || parsedItems.length === 0) {
       console.log('AI parsing failed or returned no items, using basic parsing...');
@@ -480,7 +480,7 @@ exports.uploadMenuWithOCR = async (req, res, next) => {
 function parseMenuText(text) {
   const items = [];
   const lines = text.split('\n').filter(line => line.trim());
-  
+
   // Multiple price patterns to catch different formats
   const pricePatterns = [
     /(?:[$₹€£¥₣₤₱₩]\s*)(\d+(?:[.,]\d{1,2})?)/g,  // With currency symbol
@@ -488,7 +488,7 @@ function parseMenuText(text) {
     /(?:Rs\.?|USD|INR)\s*(\d+(?:[.,]\d{1,2})?)/g,  // Rs., USD, INR prefix
     new RegExp('(\\d+)(?:\\.\\d{2})?\\s*(?:only|/-)', 'gi')  // Price with "only" or "/-"
   ];
-  
+
   // Category detection
   const categoryKeywords = {
     appetizers: ['appetizer', 'starter', 'soup', 'salad'],
@@ -497,19 +497,19 @@ function parseMenuText(text) {
     beverages: ['drink', 'beverage', 'coffee', 'tea', 'juice', 'smoothie', 'shake'],
     sides: ['side', 'bread', 'fries', 'chips']
   };
-  
+
   let currentCategory = 'uncategorized';
-  
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    
+
     // Skip very short lines
     if (line.length < 3) continue;
-    
+
     // Check if this line is a category header
     const lowerLine = line.toLowerCase();
     let isCategoryHeader = false;
-    
+
     for (const [category, keywords] of Object.entries(categoryKeywords)) {
       if (keywords.some(keyword => lowerLine.includes(keyword)) && line.length < 40) {
         currentCategory = category;
@@ -517,14 +517,14 @@ function parseMenuText(text) {
         break;
       }
     }
-    
+
     if (isCategoryHeader) continue;
-    
+
     // Try to extract price using multiple patterns
     let price = 0;
     let priceMatch = null;
     let matchedPattern = null;
-    
+
     for (const pattern of pricePatterns) {
       const matches = Array.from(line.matchAll(pattern));
       if (matches.length > 0) {
@@ -536,28 +536,28 @@ function parseMenuText(text) {
         if (price > 0) break;
       }
     }
-    
+
     if (priceMatch && price > 0) {
       // Extract name (everything before the price)
       let name = line.substring(0, priceMatch.index).trim();
-      
+
       // Clean up name
       name = name.replace(/[-:.…]+$/, '').trim();
       name = name.replace(/^\d+\.?\s*/, ''); // Remove numbering
       name = name.replace(/\.{2,}/g, '').trim(); // Remove dots
-      
+
       // Skip if name is too short or looks like a header
       if (name.length < 2 || /^[A-Z\s]{20,}$/.test(name)) {
         continue;
       }
-      
+
       // Extract description (next 1-2 lines if available)
       let description = '';
       let linesToSkip = 0;
-      
+
       for (let j = 1; j <= 2 && i + j < lines.length; j++) {
         const nextLine = lines[i + j].trim();
-        
+
         // Check if next line is a description (no price pattern)
         let hasPrice = false;
         for (const pattern of pricePatterns) {
@@ -566,7 +566,7 @@ function parseMenuText(text) {
             break;
           }
         }
-        
+
         if (!hasPrice && nextLine.length > 5 && nextLine.length < 200) {
           description += (description ? ' ' : '') + nextLine;
           linesToSkip = j;
@@ -574,7 +574,7 @@ function parseMenuText(text) {
           break;
         }
       }
-      
+
       if (name && price > 0) {
         items.push({
           name: name.substring(0, 100), // Limit name length
@@ -582,12 +582,12 @@ function parseMenuText(text) {
           price: Math.round(price * 100) / 100, // Round to 2 decimals
           category: currentCategory
         });
-        
+
         i += linesToSkip; // Skip lines used for description
       }
     }
   }
-  
+
   return items;
 }
 
@@ -596,8 +596,10 @@ function parseMenuText(text) {
 // @access  Private
 exports.getOwnerMenu = async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    
+    const userId = req.user.role === 'staff' && req.user.ownerId
+      ? req.user.ownerId
+      : req.user._id;
+
     const items = await MenuItem.find({ userId, isActive: true })
       .sort({ category: 1, name: 1 });
 
@@ -634,13 +636,13 @@ exports.getPublicMenu = async (req, res, next) => {
   try {
     const { slug } = req.params;
     const { token } = req.query; // Get token from query params
-    
+
     const User = require('../models/User');
     const QRCode = require('../models/QRCode');
-    
+
     let user;
     let tableNumber = null;
-    
+
     // If token is provided, use it to find the user
     if (token) {
       const qrCode = await QRCode.findOne({ token, isActive: true }).populate('userId');
@@ -652,7 +654,7 @@ exports.getPublicMenu = async (req, res, next) => {
     } else {
       // Find user by restaurant name slug
       const restaurantName = slug.replace(/-/g, ' ');
-      
+
       user = await User.findOne({
         restaurantName: new RegExp(`^${restaurantName}$`, 'i')
       });
@@ -873,7 +875,7 @@ exports.updateMenu = async (req, res, next) => {
     }
 
     const updatedItems = [];
-    
+
     for (const itemData of items) {
       if (itemData.id) {
         // Update existing item

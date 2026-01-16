@@ -43,6 +43,38 @@ const qrCodeSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  // QR Code Customization Options
+  customization: {
+    logoUrl: {
+      type: String,
+      default: null
+    },
+    borderStyle: {
+      type: String,
+      enum: ['none', 'square', 'rounded', 'circular'],
+      default: 'none'
+    },
+    borderColor: {
+      type: String,
+      default: '#000000'
+    },
+    qrColor: {
+      type: String,
+      default: '#000000'
+    },
+    backgroundColor: {
+      type: String,
+      default: '#FFFFFF'
+    },
+    showTableNumber: {
+      type: Boolean,
+      default: false
+    },
+    avatarId: {
+      type: String,
+      default: null
+    }
   }
 }, {
   timestamps: true
@@ -53,3 +85,4 @@ const qrCodeSchema = new mongoose.Schema({
 qrCodeSchema.index({ userId: 1, isActive: 1 });
 
 module.exports = mongoose.model('QRCode', qrCodeSchema);
+

@@ -2,11 +2,11 @@ const Order = require('../models/Order');
 const QRCode = require('../models/QRCode');
 const ApiError = require('../utils/ApiError');
 const { notifyNewOrder, notifyOrderReady, notifyOrderStatusChange } = require('../config/socket');
-const { 
-  sendOrderConfirmation, 
-  sendOrderReadyNotification, 
+const {
+  sendOrderConfirmation,
+  sendOrderReadyNotification,
   sendOrderStatusUpdate,
-  sendNewOrderNotification 
+  sendNewOrderNotification
 } = require('../utils/smsService');
 const { sendPushToUser, sendPushToPhone } = require('./pushController');
 
@@ -24,7 +24,7 @@ exports.createOrder = async (req, res, next) => {
 
     // Find QR code to get userId and table number
     const qrCode = await QRCode.findOne({ token, isActive: true });
-    
+
     if (!qrCode) {
       throw new ApiError('Invalid QR code or QR code is inactive', 404);
     }
@@ -41,7 +41,7 @@ exports.createOrder = async (req, res, next) => {
       paymentMethod: paymentMethod || 'cash',
       notes: notes || ''
     });
-    
+
     // Populate order details
     const populatedOrder = await Order.findById(order._id)
       .populate('userId', 'restaurantName email phone');
@@ -158,15 +158,17 @@ exports.getOrder = async (req, res, next) => {
   }
 };
 
-// @desc    Get all orders for owner
+// @desc    Get all orders for owner (or their staff)
 // @route   GET /api/orders/owner
 // @access  Private
 exports.getOwnerOrders = async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const ownerId = req.user.role === 'staff' && req.user.ownerId
+      ? req.user.ownerId
+      : req.user._id;
     const { status } = req.query;
 
-    const query = { userId };
+    const query = { userId: ownerId };
     if (status && status !== 'all') {
       query.status = status;
     }
@@ -210,8 +212,11 @@ exports.updateOrderStatus = async (req, res, next) => {
       throw new ApiError('Order not found', 404);
     }
 
-    // Check ownership
-    if (order.userId.toString() !== req.user.id) {
+    // Check ownership (owner or their staff)
+    const ownerId = req.user.role === 'staff' && req.user.ownerId
+      ? req.user.ownerId.toString()
+      : req.user.id;
+    if (order.userId.toString() !== ownerId) {
       throw new ApiError('Not authorized to update this order', 403);
     }
 
@@ -222,7 +227,7 @@ exports.updateOrderStatus = async (req, res, next) => {
     }
 
     order.status = status;
-    
+
     // Set completed date if status is completed
     if (status === 'completed' && !order.completedAt) {
       order.completedAt = new Date();
@@ -293,8 +298,11 @@ exports.markOrderReady = async (req, res, next) => {
       throw new ApiError('Order not found', 404);
     }
 
-    // Check ownership
-    if (order.userId.toString() !== req.user.id) {
+    // Check ownership (owner or their staff)
+    const ownerId = req.user.role === 'staff' && req.user.ownerId
+      ? req.user.ownerId.toString()
+      : req.user.id;
+    if (order.userId.toString() !== ownerId) {
       throw new ApiError('Not authorized to update this order', 403);
     }
 
@@ -361,8 +369,11 @@ exports.markOrderCompleted = async (req, res, next) => {
       throw new ApiError('Order not found', 404);
     }
 
-    // Check ownership
-    if (order.userId.toString() !== req.user.id) {
+    // Check ownership (owner or their staff)
+    const ownerId = req.user.role === 'staff' && req.user.ownerId
+      ? req.user.ownerId.toString()
+      : req.user.id;
+    if (order.userId.toString() !== ownerId) {
       throw new ApiError('Not authorized to update this order', 403);
     }
 
@@ -395,8 +406,11 @@ exports.deleteOrder = async (req, res, next) => {
       throw new ApiError('Order not found', 404);
     }
 
-    // Check ownership
-    if (order.userId.toString() !== req.user.id) {
+    // Check ownership (owner or their staff)
+    const ownerId = req.user.role === 'staff' && req.user.ownerId
+      ? req.user.ownerId.toString()
+      : req.user.id;
+    if (order.userId.toString() !== ownerId) {
       throw new ApiError('Not authorized to delete this order', 403);
     }
 
@@ -421,7 +435,7 @@ exports.getCustomerOrders = async (req, res, next) => {
     // Get start and end of today
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-    
+
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
 
@@ -433,8 +447,8 @@ exports.getCustomerOrders = async (req, res, next) => {
         $lte: endOfDay
       }
     })
-    .populate('userId', 'restaurantName')
-    .sort({ createdAt: -1 });
+      .populate('userId', 'restaurantName')
+      .sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,

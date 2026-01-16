@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: [true, 'Email is required'],
+    required: false,
     unique: true,
     lowercase: true,
     trim: true,
@@ -42,23 +42,43 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  staffRole: {
+    type: String,
+    enum: ['admin', 'manager', 'waiter', 'kitchen', 'cashier'],
+    default: null
+  },
   role: {
     type: String,
-    enum: ['owner', 'admin'],
+    enum: ['owner', 'admin', 'staff'],
     default: 'owner'
+  },
+  // For staff accounts, link back to owner user
+  ownerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
   },
   isActive: {
     type: Boolean,
     default: true
+  },
+  permissions: {
+    type: [String],
+    default: []
+  },
+  // Optional: store 6-digit staff PIN in plain text for owner reference
+  staffPin: {
+    type: String,
+    trim: true
   }
 }, {
   timestamps: true
 });
 
 // Hash password before saving
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
-  
+
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
@@ -69,12 +89,12 @@ userSchema.pre('save', async function(next) {
 });
 
 // Method to compare password
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Method to get public profile
-userSchema.methods.toJSON = function() {
+userSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.password;
   return obj;

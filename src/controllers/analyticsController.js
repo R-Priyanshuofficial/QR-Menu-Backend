@@ -8,34 +8,49 @@ const mongoose = require('mongoose');
 // @access  Private
 exports.getAnalyticsStats = async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    const { period = 'week' } = req.query; // week, month, year, all
+    const userId = req.user.role === 'staff' && req.user.ownerId
+      ? req.user.ownerId
+      : req.user._id;
+    const { period = 'week', startDate: customStartDate, endDate: customEndDate } = req.query;
 
     console.log('📊 Analytics Request - User ID:', userId);
     console.log('📅 Period:', period);
+    console.log('📅 Custom Date Range:', customStartDate, 'to', customEndDate);
 
     // Calculate date range
     const now = new Date();
-    let startDate = new Date();
-    
-    switch (period) {
-      case 'today':
-        startDate.setHours(0, 0, 0, 0);
-        break;
-      case 'week':
-        startDate.setDate(now.getDate() - 7);
-        break;
-      case 'month':
-        startDate.setMonth(now.getMonth() - 1);
-        break;
-      case 'year':
-        startDate.setFullYear(now.getFullYear() - 1);
-        break;
-      case 'all':
-        startDate = new Date(0); // Beginning of time
-        break;
-      default:
-        startDate.setDate(now.getDate() - 7);
+    let startDate;
+
+    // If custom dates provided, use them
+    if (period === 'custom' && customStartDate && customEndDate) {
+      startDate = new Date(customStartDate);
+      startDate.setHours(0, 0, 0, 0);
+      now.setTime(new Date(customEndDate).getTime());
+      now.setHours(23, 59, 59, 999);
+      console.log('📅 Using custom date range:', startDate, 'to', now);
+    } else {
+      // Use period-based date range
+      startDate = new Date();
+      
+      switch (period) {
+        case 'today':
+          startDate.setHours(0, 0, 0, 0);
+          break;
+        case 'week':
+          startDate.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          startDate.setMonth(now.getMonth() - 1);
+          break;
+        case 'year':
+          startDate.setFullYear(now.getFullYear() - 1);
+          break;
+        case 'all':
+          startDate = new Date(0); // Beginning of time
+          break;
+        default:
+          startDate.setDate(now.getDate() - 7);
+      }
     }
 
     console.log('📅 Date range:', startDate, 'to', now);
@@ -80,7 +95,7 @@ exports.getAnalyticsStats = async (req, res, next) => {
     // Revenue calculations
     const totalRevenue = completedOrders.reduce((sum, order) => sum + order.totalAmount, 0);
     const averageOrderValue = completedOrders.length > 0 ? totalRevenue / completedOrders.length : 0;
-    
+
     // Calculate pending revenue (orders that haven't been completed yet)
     const pendingRevenue = orders
       .filter(o => ['pending', 'preparing', 'ready'].includes(o.status))
@@ -145,14 +160,14 @@ exports.getAnalyticsStats = async (req, res, next) => {
     });
 
     // Peak hours
-    const peakHour = hourlyDistribution.reduce((max, curr, idx, arr) => 
+    const peakHour = hourlyDistribution.reduce((max, curr, idx, arr) =>
       curr.orders > arr[max].orders ? idx : max, 0);
 
     // Day of week analysis (0 = Sunday, 6 = Saturday)
-    const dayOfWeekData = Array(7).fill(0).map((_, i) => ({ 
+    const dayOfWeekData = Array(7).fill(0).map((_, i) => ({
       day: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][i],
-      orders: 0, 
-      revenue: 0 
+      orders: 0,
+      revenue: 0
     }));
     orders.forEach(order => {
       const day = new Date(order.createdAt).getDay();
@@ -189,18 +204,18 @@ exports.getAnalyticsStats = async (req, res, next) => {
       const date = new Date();
       date.setDate(date.getDate() - i);
       date.setHours(0, 0, 0, 0);
-      
+
       const nextDate = new Date(date);
       nextDate.setDate(nextDate.getDate() + 1);
-      
-      const dayOrders = orders.filter(o => 
-        o.createdAt >= date && 
-        o.createdAt < nextDate && 
+
+      const dayOrders = orders.filter(o =>
+        o.createdAt >= date &&
+        o.createdAt < nextDate &&
         o.status === 'completed'
       );
-      
+
       const dayRevenue = dayOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-      
+
       revenueTrend.push({
         date: date.toISOString().split('T')[0],
         revenue: dayRevenue,
@@ -229,8 +244,8 @@ exports.getAnalyticsStats = async (req, res, next) => {
     });
 
     const previousRevenue = previousOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-    const revenueGrowth = previousRevenue > 0 
-      ? ((totalRevenue - previousRevenue) / previousRevenue) * 100 
+    const revenueGrowth = previousRevenue > 0
+      ? ((totalRevenue - previousRevenue) / previousRevenue) * 100
       : 0;
 
     const orderGrowth = previousOrders.length > 0
@@ -267,8 +282,8 @@ exports.getAnalyticsStats = async (req, res, next) => {
         customers: {
           unique: uniqueCustomers,
           repeat: repeatCustomers,
-          repeatRate: uniqueCustomers > 0 
-            ? Math.round((repeatCustomers / uniqueCustomers) * 100) 
+          repeatRate: uniqueCustomers > 0
+            ? Math.round((repeatCustomers / uniqueCustomers) * 100)
             : 0
         },
         popularItems,
@@ -295,11 +310,13 @@ exports.getAnalyticsStats = async (req, res, next) => {
 // @access  Private
 exports.getOrderHistory = async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.role === 'staff' && req.user.ownerId
+      ? req.user.ownerId
+      : req.user._id;
     const { page = 1, limit = 20, status, startDate, endDate } = req.query;
 
     const query = { userId };
-    
+
     if (status && status !== 'all') {
       query.status = status;
     }
@@ -351,7 +368,9 @@ exports.getOrderHistory = async (req, res, next) => {
 // @access  Private
 exports.getCustomerInsights = async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.role === 'staff' && req.user.ownerId
+      ? req.user.ownerId
+      : req.user._id;
 
     const orders = await Order.find({ userId });
 

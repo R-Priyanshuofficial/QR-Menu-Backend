@@ -7,7 +7,9 @@ const ApiError = require('../utils/ApiError');
 // @access  Private
 exports.getDashboardStats = async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.role === 'staff' && req.user.ownerId
+      ? req.user.ownerId
+      : req.user._id;
 
     // Get total QR codes
     const totalQRCodes = await QRCode.countDocuments({ userId, isActive: true });
@@ -22,11 +24,11 @@ exports.getDashboardStats = async (req, res, next) => {
     // Get recent scans (last 7 days)
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
+
     const recentScans = await QRCode.aggregate([
       {
         $match: {
-          userId: req.user._id,
+          userId,
           lastScannedAt: { $gte: sevenDaysAgo }
         }
       },
@@ -43,24 +45,24 @@ exports.getDashboardStats = async (req, res, next) => {
 
     // Get order statistics
     const totalOrders = await Order.countDocuments({ userId });
-    
+
     // Get today's orders
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-    const todayOrders = await Order.countDocuments({ 
-      userId, 
-      createdAt: { $gte: startOfDay } 
+    const todayOrders = await Order.countDocuments({
+      userId,
+      createdAt: { $gte: startOfDay }
     });
 
     // Get pending orders count
-    const pendingOrders = await Order.countDocuments({ 
-      userId, 
-      status: 'pending' 
+    const pendingOrders = await Order.countDocuments({
+      userId,
+      status: 'pending'
     });
 
     // Calculate today's revenue
-    const todayOrdersData = await Order.find({ 
-      userId, 
+    const todayOrdersData = await Order.find({
+      userId,
       createdAt: { $gte: startOfDay },
       status: { $ne: 'cancelled' }
     });
@@ -97,7 +99,9 @@ exports.getDashboardStats = async (req, res, next) => {
 // @access  Private
 exports.getRecentActivity = async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.role === 'staff' && req.user.ownerId
+      ? req.user.ownerId
+      : req.user._id;
 
     // Get recently scanned QR codes
     const recentActivity = await QRCode.find({ userId })
@@ -119,7 +123,9 @@ exports.getRecentActivity = async (req, res, next) => {
 // @access  Private
 exports.getQRSummary = async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.role === 'staff' && req.user.ownerId
+      ? req.user.ownerId
+      : req.user._id;
 
     const qrCodes = await QRCode.find({ userId, isActive: true })
       .select('name type tableNumber scans createdAt')

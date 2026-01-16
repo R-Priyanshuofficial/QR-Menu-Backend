@@ -35,6 +35,12 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve static files for avatars and uploads
+app.use('/avatars', express.static('public/avatars'));
+app.use('/uploads', express.static('uploads'));
+
+
+
 // Health Check Route
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -50,12 +56,15 @@ app.use('/api/auth', require('./src/routes/authRoutes'));
 app.use('/api/dashboard', require('./src/routes/dashboardRoutes'));
 app.use('/api/analytics', require('./src/routes/analyticsRoutes'));
 app.use('/api/qr', require('./src/routes/qrRoutes'));
+app.use('/api/qr', require('./src/routes/qrDesignRoutes')); // AI design generation
 app.use('/api/menu', require('./src/routes/menuRoutes'));
 app.use('/api/orders', require('./src/routes/orderRoutes'));
 app.use('/api/printer', require('./src/routes/printerRoutes')); // Thermal printer routes
 app.use('/api/test', require('./src/routes/testRoutes')); // Test/Debug routes
 app.use('/api/debug', require('./src/routes/debugRoutes')); // Debug endpoints
 app.use('/api/push', require('./src/routes/pushRoutes'));
+app.use('/api/staff', require('./src/routes/staffRoutes'));
+app.use('/api/inventory', require('./src/routes/inventoryRoutes'));
 
 // 404 Handler
 app.use((req, res) => {
