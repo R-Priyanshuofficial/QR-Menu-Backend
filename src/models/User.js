@@ -42,6 +42,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  upiId: {
+    type: String,
+    trim: true
+  },
   staffRole: {
     type: String,
     enum: ['admin', 'manager', 'waiter', 'kitchen', 'cashier'],

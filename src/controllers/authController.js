@@ -136,11 +136,11 @@ exports.getMe = async (req, res, next) => {
 // @access  Private
 exports.updateProfile = async (req, res, next) => {
   try {
-    const { name, phone, restaurantName, restaurantAddress, restaurantDescription, restaurantLogo } = req.body;
+    const { name, phone, restaurantName, restaurantAddress, restaurantDescription, restaurantLogo, upiId } = req.body;
 
     const user = await User.findByIdAndUpdate(
       req.user.id,
-      { name, phone, restaurantName, restaurantAddress, restaurantDescription, restaurantLogo },
+      { name, phone, restaurantName, restaurantAddress, restaurantDescription, restaurantLogo, upiId },
       { new: true, runValidators: true }
     );
 
