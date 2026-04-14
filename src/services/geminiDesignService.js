@@ -1,224 +1,241 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-
 /**
- * Generate AI-powered QR placeholder design variations
- * @param {object} params - Design parameters
- * @returns {Promise<Array>} Array of design specifications
+ * Gemini Design Service
+ * Generates template-specific design specifications for QR code placeholders
+ * Each template gets 3 visually DISTINCT designs that clearly show the template's colors
  */
-const generateDesignVariations = async (params) => {
-  const {
-    restaurantName,
-    template,
-    qrType,
-    tableNumber
-  } = params;
 
-  // Validate API key exists
-  if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'your_gemini_api_key_here') {
-    console.warn('⚠️ Gemini API key not configured. Using default designs.');
-    return getDefaultDesigns(template);
-  }
-
-  console.log('🤖 Attempting to use Gemini AI for design generation...');
-
-  try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    
-    // Use timeout for API call to prevent long waits
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Gemini API timeout')), 10000);
-    });
-
-    const generatePromise = (async () => {
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
-
-      const prompt = `You are a professional graphic designer. Generate 3 creative design variations for a QR code placeholder.
-
-Restaurant: "${restaurantName}"
-Style Template: ${template.name} (${template.description})
-QR Type: ${qrType === 'table' ? `Table ${tableNumber}` : 'Global Menu'}
-
-For each variation, provide:
-1. Restaurant name typography (font size, weight, letter spacing)
-2. Layout style (centered, offset, decorative elements)
-3. Color accents and decorative patterns
-4. Branding placement style
-
-Return ONLY a JSON array with 3 design objects. Each object should have:
-{
-  "id": "design-1",
-  "name": "Design Name",
-  "description": "Brief description",
-  "header": {
-    "fontSize": number (36-54),
-    "fontWeight": "normal|bold",
-    "letterSpacing": number (1-4),
-    "textAlign": "center|left",
-    "decorative": "none|underline|frame"
-  },
-  "layout": {
-    "padding": number (20-40),
-    "qrSize": "normal|large",
-    "style": "minimal|elegant|modern"
-  },
-  "branding": {
-    "position": "bottom-right|bottom-center",
-    "size": "small|medium",
-    "style": "subtle|prominent"
-  }
-}
-
-Make designs professional, print-ready, and aligned with the ${template.name} theme.`;
-
-      const result = await model.generateContent(prompt);
-      const response = result.response;
-      const text = response.text();
-      
-      // Extract JSON from response
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) {
-        console.warn('⚠️ No JSON array found in Gemini response. Using default designs.');
-        return getDefaultDesigns(template);
-      }
-
-      const designs = JSON.parse(jsonMatch[0]);
-      
-      // Validate and ensure we have 3 designs
-      if (!Array.isArray(designs) || designs.length < 3) {
-        console.warn('⚠️ Invalid design array from Gemini. Using default designs.');
-        return getDefaultDesigns(template);
-      }
-
-      console.log('✅ Successfully generated AI designs with Gemini');
-      return designs.slice(0, 3);
-    })();
-
-    // Race between API call and timeout
-    return await Promise.race([generatePromise, timeoutPromise]);
-
-  } catch (error) {
-    // Detailed error logging
-    console.error('❌ Gemini AI design generation error:');
-    console.error('Error Type:', error.name);
-    console.error('Error Message:', error.message);
-    
-    // Check for specific error types
-    if (error.message && error.message.includes('404')) {
-      console.error('⚠️ Gemini API model not found. The API key may be incompatible with the requested model.');
-      console.error('💡 Suggestion: Get a new API key from https://aistudio.google.com/app/apikey');
-    } else if (error.message && error.message.includes('API key')) {
-      console.error('⚠️ Invalid API key. Please check your GEMINI_API_KEY in .env file.');
-    } else if (error.message && error.message.includes('timeout')) {
-      console.error('⚠️ Gemini API request timed out.');
-    }
-    
-    console.log('🔄 Falling back to default designs...');
-    // Fallback to default designs
-    return getDefaultDesigns(template);
-  }
+const generateDesignVariations = async (restaurantName, templateId = 'royal') => {
+  return null; // SVG fallback only — AI image gen needs a non-leaked key
 };
 
 /**
- * Get default design variations (fallback)
- * @param {object} template - Template object
- * @returns {Array} Default design specifications
+ * Template-specific design variations
+ * CRITICAL: Design-1 must use the template's IDENTITY color prominently
+ * Design-2 uses a dark luxury frame, Design-3 uses clean modern
  */
 const getDefaultDesigns = (template) => {
-  return [
-    {
-      id: 'design-1',
-      name: 'Royal Gold Luxury',
-      description: 'Premium Art Deco design with metallic gold gradients',
-      header: {
-        fontSize: 56,
-        fontWeight: 'bold',
-        letterSpacing: 4,
-        textAlign: 'center',
-        decorative: 'artDeco',
-        color: '#EAB308',
-        gradient: 'gold'
+  const templateId = template.id || 'royal';
+
+  const designFactories = {
+    // ═══════════════════════════════════════════════════════════════
+    // ROYAL — Purple & Gold
+    // ═══════════════════════════════════════════════════════════════
+    royal: () => [
+      {
+        id: 'design-1',
+        name: 'Royal Heritage',
+        description: 'Rich purple frame with gold corner accents',
+        header: { fontSize: 48, fontWeight: 'bold', letterSpacing: 3, textAlign: 'center', decorative: 'frame', color: '#FFD700', gradient: null },
+        layout: { padding: 35, qrSize: 'normal', style: 'classic', frameColor: '#4A148C' },
+        qrOverride: null,
+        branding: { position: 'bottom-right', size: 'small', style: 'subtle' },
+        theme: 'royal'
       },
-      layout: {
-        padding: 45,
-        qrSize: 'normal',
-        style: 'luxury',
-        frameColor: '#0F172A'
+      {
+        id: 'design-2',
+        name: 'Royal Opulence',
+        description: 'Dark velvet with metallic gold Art Deco borders',
+        header: { fontSize: 52, fontWeight: 'bold', letterSpacing: 4, textAlign: 'center', decorative: 'artDeco', color: '#FFD700', gradient: 'gold' },
+        layout: { padding: 45, qrSize: 'normal', style: 'luxury', frameColor: '#1A0A3E' },
+        qrOverride: { qrColor: '#2D1B69', backgroundColor: '#F3E5F5', borderColor: '#1A0A3E' },
+        branding: { position: 'bottom-center', size: 'medium', style: 'prominent' },
+        theme: 'royal'
       },
-      // Override QR colors for cohesive premium look
-      qrOverride: {
-        qrColor: '#1F2937',      // Dark charcoal QR modules
-        backgroundColor: '#FEF3C7', // Warm cream/ivory background
-        borderColor: '#0F172A'   // Dark frame
-      },
-      branding: {
-        position: 'bottom-center',
-        size: 'medium',
-        style: 'gold'
+      {
+        id: 'design-3',
+        name: 'Royal Modern',
+        description: 'Clean white design with purple accent borders',
+        header: { fontSize: 42, fontWeight: 'normal', letterSpacing: 6, textAlign: 'center', decorative: 'none', color: '#4A148C', gradient: null },
+        layout: { padding: 22, qrSize: 'normal', style: 'modern', frameColor: '#9C27B0' },
+        qrOverride: null,
+        branding: { position: 'bottom-right', size: 'small', style: 'subtle' },
+        theme: 'royal'
       }
-    },
-    {
-      id: 'design-2',
-      name: 'Platinum Elite',
-      description: 'Sophisticated modern design with silver metallic accents',
-      header: {
-        fontSize: 56,
-        fontWeight: 'bold',
-        letterSpacing: 5,
-        textAlign: 'center',
-        decorative: 'artDeco',
-        color: '#E2E8F0',
-        gradient: 'silver'
+    ],
+
+    // ═══════════════════════════════════════════════════════════════
+    // CLASSY — Black, White & Gold
+    // ═══════════════════════════════════════════════════════════════
+    classy: () => [
+      {
+        id: 'design-1',
+        name: 'Classic Elegance',
+        description: 'Champagne gold frame with cream interior',
+        header: { fontSize: 48, fontWeight: 'bold', letterSpacing: 3, textAlign: 'center', decorative: 'frame', color: '#1A1A1A', gradient: null },
+        layout: { padding: 35, qrSize: 'normal', style: 'classic', frameColor: '#D4AF37' },
+        qrOverride: null,
+        branding: { position: 'bottom-right', size: 'small', style: 'subtle' },
+        theme: 'classy'
       },
-      layout: {
-        padding: 45,
-        qrSize: 'normal',
-        style: 'luxury',
-        frameColor: '#1A202C'
+      {
+        id: 'design-2',
+        name: 'Noir Sophistication',
+        description: 'Matte black with champagne gold Art Deco',
+        header: { fontSize: 52, fontWeight: 'bold', letterSpacing: 4, textAlign: 'center', decorative: 'artDeco', color: '#D4AF37', gradient: 'gold' },
+        layout: { padding: 45, qrSize: 'normal', style: 'luxury', frameColor: '#0A0A0A' },
+        qrOverride: { qrColor: '#1A1A1A', backgroundColor: '#FFF8E7', borderColor: '#0A0A0A' },
+        branding: { position: 'bottom-center', size: 'medium', style: 'prominent' },
+        theme: 'classy'
       },
-      // Silver theme QR colors
-      qrOverride: {
-        qrColor: '#1E293B',      // Dark slate QR modules
-        backgroundColor: '#F1F5F9', // Light silver/gray background
-        borderColor: '#1A202C'   // Dark frame
-      },
-      branding: {
-        position: 'bottom-center',
-        size: 'medium',
-        style: 'silver'
+      {
+        id: 'design-3',
+        name: 'Metropolitan',
+        description: 'Clean white with thin black hairline borders',
+        header: { fontSize: 42, fontWeight: 'normal', letterSpacing: 6, textAlign: 'center', decorative: 'none', color: '#1A1A1A', gradient: null },
+        layout: { padding: 22, qrSize: 'normal', style: 'modern', frameColor: '#1A1A1A' },
+        qrOverride: null,
+        branding: { position: 'bottom-right', size: 'small', style: 'subtle' },
+        theme: 'classy'
       }
-    },
-    {
-      id: 'design-3',
-      name: 'Rose Gold Elegance',
-      description: 'Warm, high-end design with copper/rose gold finish',
-      header: {
-        fontSize: 56,
-        fontWeight: 'bold',
-        letterSpacing: 4,
-        textAlign: 'center',
-        decorative: 'artDeco',
-        color: '#FB7185',
-        gradient: 'roseGold'
+    ],
+
+    // ═══════════════════════════════════════════════════════════════
+    // FRESH — Green & White  
+    // ═══════════════════════════════════════════════════════════════
+    fresh: () => [
+      {
+        id: 'design-1',
+        name: 'Garden Botanical',
+        description: 'Rich green frame with white corner accents',
+        header: { fontSize: 48, fontWeight: 'bold', letterSpacing: 3, textAlign: 'center', decorative: 'frame', color: '#FFFFFF', gradient: null },
+        layout: { padding: 35, qrSize: 'normal', style: 'classic', frameColor: '#2E7D32' },
+        qrOverride: null,
+        branding: { position: 'bottom-right', size: 'small', style: 'subtle' },
+        theme: 'fresh'
       },
-      layout: {
-        padding: 45,
-        qrSize: 'normal',
-        style: 'luxury',
-        frameColor: '#2B1810'
+      {
+        id: 'design-2',
+        name: 'Emerald Luxury',
+        description: 'Deep emerald with golden leaf Art Deco accents',
+        header: { fontSize: 52, fontWeight: 'bold', letterSpacing: 4, textAlign: 'center', decorative: 'artDeco', color: '#DAA520', gradient: 'gold' },
+        layout: { padding: 45, qrSize: 'normal', style: 'luxury', frameColor: '#0D2818' },
+        qrOverride: { qrColor: '#1B5E20', backgroundColor: '#E8F5E9', borderColor: '#0D2818' },
+        branding: { position: 'bottom-center', size: 'medium', style: 'prominent' },
+        theme: 'fresh'
       },
-      // Rose gold theme QR colors
-      qrOverride: {
-        qrColor: '#44271B',      // Deep brown QR modules
-        backgroundColor: '#FFF1F2', // Soft rose/blush background
-        borderColor: '#2B1810'   // Warm brown frame
-      },
-      branding: {
-        position: 'bottom-center',
-        size: 'medium',
-        style: 'roseGold'
+      {
+        id: 'design-3',
+        name: 'Fresh Modern',
+        description: 'Clean white design with green accent lines',
+        header: { fontSize: 42, fontWeight: 'normal', letterSpacing: 6, textAlign: 'center', decorative: 'none', color: '#1B5E20', gradient: null },
+        layout: { padding: 22, qrSize: 'normal', style: 'modern', frameColor: '#4CAF50' },
+        qrOverride: null,
+        branding: { position: 'bottom-right', size: 'small', style: 'subtle' },
+        theme: 'fresh'
       }
-    }
-  ];
+    ],
+
+    // ═══════════════════════════════════════════════════════════════
+    // VIBRANT — Red & Orange
+    // ═══════════════════════════════════════════════════════════════
+    vibrant: () => [
+      {
+        id: 'design-1',
+        name: 'Crimson Fire',
+        description: 'Bold red frame with warm orange accents',
+        header: { fontSize: 48, fontWeight: 'bold', letterSpacing: 3, textAlign: 'center', decorative: 'frame', color: '#FFFFFF', gradient: null },
+        layout: { padding: 35, qrSize: 'normal', style: 'classic', frameColor: '#D32F2F' },
+        qrOverride: null,
+        branding: { position: 'bottom-right', size: 'small', style: 'subtle' },
+        theme: 'vibrant'
+      },
+      {
+        id: 'design-2',
+        name: 'Ruby Premium',
+        description: 'Dark background with copper-gold Art Deco accents',
+        header: { fontSize: 52, fontWeight: 'bold', letterSpacing: 4, textAlign: 'center', decorative: 'artDeco', color: '#FFB74D', gradient: 'roseGold' },
+        layout: { padding: 45, qrSize: 'normal', style: 'luxury', frameColor: '#1A0505' },
+        qrOverride: { qrColor: '#B71C1C', backgroundColor: '#FFF3E0', borderColor: '#1A0505' },
+        branding: { position: 'bottom-center', size: 'medium', style: 'prominent' },
+        theme: 'vibrant'
+      },
+      {
+        id: 'design-3',
+        name: 'Sunset Modern',
+        description: 'Clean white design with bold red accent borders',
+        header: { fontSize: 42, fontWeight: 'normal', letterSpacing: 6, textAlign: 'center', decorative: 'none', color: '#B71C1C', gradient: null },
+        layout: { padding: 22, qrSize: 'normal', style: 'modern', frameColor: '#FF5722' },
+        qrOverride: null,
+        branding: { position: 'bottom-right', size: 'small', style: 'subtle' },
+        theme: 'vibrant'
+      }
+    ],
+
+    // ═══════════════════════════════════════════════════════════════
+    // OCEAN — Blue & Teal
+    // ═══════════════════════════════════════════════════════════════
+    ocean: () => [
+      {
+        id: 'design-1',
+        name: 'Coastal Elegance',
+        description: 'Ocean blue frame with teal corner accents',
+        header: { fontSize: 48, fontWeight: 'bold', letterSpacing: 3, textAlign: 'center', decorative: 'frame', color: '#FFFFFF', gradient: null },
+        layout: { padding: 35, qrSize: 'normal', style: 'classic', frameColor: '#0277BD' },
+        qrOverride: null,
+        branding: { position: 'bottom-right', size: 'small', style: 'subtle' },
+        theme: 'ocean'
+      },
+      {
+        id: 'design-2',
+        name: 'Deep Sea',
+        description: 'Dark ocean blue with silver-pearl Art Deco borders',
+        header: { fontSize: 52, fontWeight: 'bold', letterSpacing: 4, textAlign: 'center', decorative: 'artDeco', color: '#E0F7FA', gradient: 'silver' },
+        layout: { padding: 45, qrSize: 'normal', style: 'luxury', frameColor: '#01304A' },
+        qrOverride: { qrColor: '#01579B', backgroundColor: '#E1F5FE', borderColor: '#01304A' },
+        branding: { position: 'bottom-center', size: 'medium', style: 'prominent' },
+        theme: 'ocean'
+      },
+      {
+        id: 'design-3',
+        name: 'Aqua Modern',
+        description: 'Clean white design with teal accent borders',
+        header: { fontSize: 42, fontWeight: 'normal', letterSpacing: 6, textAlign: 'center', decorative: 'none', color: '#01579B', gradient: null },
+        layout: { padding: 22, qrSize: 'normal', style: 'modern', frameColor: '#00BCD4' },
+        qrOverride: null,
+        branding: { position: 'bottom-right', size: 'small', style: 'subtle' },
+        theme: 'ocean'
+      }
+    ],
+
+    // ═══════════════════════════════════════════════════════════════
+    // CUSTOM — User's own colors  
+    // ═══════════════════════════════════════════════════════════════
+    custom: () => [
+      {
+        id: 'design-1',
+        name: 'Custom Classic',
+        description: 'Bordered design with your custom colors',
+        header: { fontSize: 48, fontWeight: 'bold', letterSpacing: 3, textAlign: 'center', decorative: 'frame', color: template.qrColor || '#000000', gradient: null },
+        layout: { padding: 35, qrSize: 'normal', style: 'classic', frameColor: template.borderColor || '#000000' },
+        qrOverride: null,
+        branding: { position: 'bottom-right', size: 'small', style: 'subtle' },
+        theme: 'custom'
+      },
+      {
+        id: 'design-2',
+        name: 'Premium Dark',
+        description: 'Elegant dark frame with gold Art Deco accents',
+        header: { fontSize: 52, fontWeight: 'bold', letterSpacing: 4, textAlign: 'center', decorative: 'artDeco', color: '#D4AF37', gradient: 'gold' },
+        layout: { padding: 45, qrSize: 'normal', style: 'luxury', frameColor: '#1A1A1A' },
+        qrOverride: { qrColor: template.qrColor || '#000000', backgroundColor: template.backgroundColor || '#FFFFFF', borderColor: '#1A1A1A' },
+        branding: { position: 'bottom-center', size: 'medium', style: 'prominent' },
+        theme: 'custom'
+      },
+      {
+        id: 'design-3',
+        name: 'Clean Modern',
+        description: 'Minimalist white design with thin accent lines',
+        header: { fontSize: 42, fontWeight: 'normal', letterSpacing: 6, textAlign: 'center', decorative: 'none', color: template.qrColor || '#000000', gradient: null },
+        layout: { padding: 22, qrSize: 'normal', style: 'modern', frameColor: template.borderColor || '#000000' },
+        qrOverride: null,
+        branding: { position: 'bottom-right', size: 'small', style: 'subtle' },
+        theme: 'custom'
+      }
+    ]
+  };
+
+  const factory = designFactories[templateId] || designFactories.custom;
+  return factory();
 };
 
 module.exports = {

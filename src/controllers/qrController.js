@@ -1,25 +1,26 @@
 const QRCode = require('../models/QRCode');
 const { v4: uuidv4 } = require('uuid');
 const ApiError = require('../utils/ApiError');
-const { generateCustomizedQR, bufferToDataURL } = require('../services/qrService');
+const { generateBaseQR, bufferToDataURL } = require('../services/qrService');
+const { sanitizeCustomization } = require('../utils/qrCustomizationSanitizer');
 
 // @desc    Generate QR Code
 // @route   POST /api/qr/generate
 // @access  Private
 exports.generateQR = async (req, res, next) => {
   try {
-    const { name, type, tableNumber, customization } = req.body;
+    const {
+      name, type, tableNumber, customization, designConfig,
+      restaurantName, tagline, category
+    } = req.body;
+    const safeCustomization = sanitizeCustomization(customization || {}, type);
     const userId = req.user.id;
 
     // Check for duplicate table number
     if (type === 'table' && tableNumber) {
       const existingQR = await QRCode.findOne({
-        userId,
-        type: 'table',
-        tableNumber,
-        isActive: true
+        userId, type: 'table', tableNumber, isActive: true
       });
-
       if (existingQR) {
         throw new ApiError(`QR code for Table ${tableNumber} already exists`, 400);
       }
@@ -33,26 +34,16 @@ exports.generateQR = async (req, res, next) => {
       ? req.user.restaurantName.toLowerCase().replace(/\s+/g, '-')
       : 'menu';
     const requestOrigin = (req.headers.origin || '').replace(/\/$/, '');
-    const frontendBase = (process.env.FRONTEND_APP_URL || requestOrigin || 'http://localhost:3000');
+    const frontendBase = process.env.FRONTEND_APP_URL || requestOrigin || 'http://localhost:3000';
     const url = `${frontendBase}/m/${menuSlug}/q/${token}`;
 
-    // Prepare customization options
-    const qrCustomization = {
-      qrColor: customization?.qrColor || '#000000',
-      backgroundColor: customization?.backgroundColor || '#FFFFFF',
-      logoUrl: customization?.logoUrl || null,
-      avatarId: customization?.avatarId || null,
-      borderStyle: customization?.borderStyle || 'none',
-      borderColor: customization?.borderColor || '#000000',
-      showTableNumber: type === 'table' && customization?.showTableNumber === true,
-      tableNumber: type === 'table' ? tableNumber : null
-    };
-
-    // Generate customized QR code
-    const qrBuffer = await generateCustomizedQR(url, qrCustomization);
+    // Generate a basic QR image for fallback (emails, PDF exports, etc.)
+    const qrColor = safeCustomization.qrColor || designConfig?.dotsOptions?.color || '#000000';
+    const bgColor = safeCustomization.backgroundColor || designConfig?.backgroundOptions?.color || '#FFFFFF';
+    const qrBuffer = await generateBaseQR(url, { qrColor, backgroundColor: bgColor });
     const qrCodeData = bufferToDataURL(qrBuffer);
 
-    // Save to database
+    // Save to database with full design config
     const qrCodeDoc = await QRCode.create({
       userId,
       name,
@@ -61,15 +52,12 @@ exports.generateQR = async (req, res, next) => {
       token,
       qrCodeData,
       url,
-      customization: {
-        logoUrl: qrCustomization.logoUrl,
-        borderStyle: qrCustomization.borderStyle,
-        borderColor: qrCustomization.borderColor,
-        qrColor: qrCustomization.qrColor,
-        backgroundColor: qrCustomization.backgroundColor,
-        showTableNumber: qrCustomization.showTableNumber,
-        avatarId: qrCustomization.avatarId
-      }
+      redirectUrl: url,
+      designConfig: designConfig || null,
+      restaurantName: restaurantName || '',
+      tagline: tagline || '',
+      category: category || 'restaurant',
+      customization: safeCustomization
     });
 
     res.status(201).json({
@@ -84,6 +72,7 @@ exports.generateQR = async (req, res, next) => {
           token: qrCodeDoc.token,
           url: qrCodeDoc.url,
           qrCodeData: qrCodeDoc.qrCodeData,
+          designConfig: qrCodeDoc.designConfig,
           customization: qrCodeDoc.customization,
           createdAt: qrCodeDoc.createdAt
         }
@@ -106,7 +95,6 @@ exports.getAllQRCodes = async (req, res, next) => {
     const qrCodes = await QRCode.find({ userId, isActive: true })
       .sort({ createdAt: -1 });
 
-    // Map _id to id for consistency with frontend
     const formattedQRCodes = qrCodes.map(qr => ({
       id: qr._id,
       name: qr.name,
@@ -115,9 +103,12 @@ exports.getAllQRCodes = async (req, res, next) => {
       token: qr.token,
       url: qr.url,
       qrCodeData: qr.qrCodeData,
+      designConfig: qr.designConfig,
       scans: qr.scans,
       createdAt: qr.createdAt,
-      lastScannedAt: qr.lastScannedAt
+      lastScannedAt: qr.lastScannedAt,
+      restaurantName: qr.restaurantName,
+      category: qr.category,
     }));
 
     res.status(200).json({
@@ -136,12 +127,7 @@ exports.getAllQRCodes = async (req, res, next) => {
 exports.getQRCode = async (req, res, next) => {
   try {
     const qrCode = await QRCode.findById(req.params.id);
-
-    if (!qrCode) {
-      throw new ApiError('QR Code not found', 404);
-    }
-
-    // Check ownership
+    if (!qrCode) throw new ApiError('QR Code not found', 404);
     if (qrCode.userId.toString() !== req.user.id) {
       throw new ApiError('Not authorized to access this QR Code', 403);
     }
@@ -155,23 +141,157 @@ exports.getQRCode = async (req, res, next) => {
   }
 };
 
+// @desc    Update QR code
+// @route   PUT /api/qr/:id
+// @access  Private
+exports.updateQR = async (req, res, next) => {
+  try {
+    const qrCode = await QRCode.findById(req.params.id);
+    if (!qrCode) throw new ApiError('QR Code not found', 404);
+    if (qrCode.userId.toString() !== req.user.id) {
+      throw new ApiError('Not authorized to update this QR Code', 403);
+    }
+
+    const { name, designConfig, customization, restaurantName, tagline, category, redirectUrl } = req.body;
+
+    if (name) qrCode.name = name;
+    if (designConfig) qrCode.designConfig = designConfig;
+    if (customization) {
+      const safeCustomization = sanitizeCustomization(customization, qrCode.type);
+      qrCode.customization = { ...qrCode.customization, ...safeCustomization };
+    }
+    if (restaurantName !== undefined) qrCode.restaurantName = restaurantName;
+    if (tagline !== undefined) qrCode.tagline = tagline;
+    if (category) qrCode.category = category;
+    if (redirectUrl) qrCode.redirectUrl = redirectUrl;
+
+    // Regenerate fallback QR image
+    const qrColor = qrCode.customization?.qrColor || designConfig?.dotsOptions?.color || '#000000';
+    const bgColor = qrCode.customization?.backgroundColor || designConfig?.backgroundOptions?.color || '#FFFFFF';
+    const qrBuffer = await generateBaseQR(qrCode.url, { qrColor, backgroundColor: bgColor });
+    qrCode.qrCodeData = bufferToDataURL(qrBuffer);
+
+    await qrCode.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'QR Code updated successfully',
+      data: { qrCode }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Duplicate QR code
+// @route   POST /api/qr/:id/duplicate
+// @access  Private
+exports.duplicateQR = async (req, res, next) => {
+  try {
+    const original = await QRCode.findById(req.params.id);
+    if (!original) throw new ApiError('QR Code not found', 404);
+    if (original.userId.toString() !== req.user.id) {
+      throw new ApiError('Not authorized', 403);
+    }
+
+    const token = uuidv4();
+    const requestOrigin = (req.headers.origin || '').replace(/\/$/, '');
+    const frontendBase = process.env.FRONTEND_APP_URL || requestOrigin || 'http://localhost:3000';
+    const menuSlug = req.user.restaurantName
+      ? req.user.restaurantName.toLowerCase().replace(/\s+/g, '-')
+      : 'menu';
+    const url = `${frontendBase}/m/${menuSlug}/q/${token}`;
+
+    // Generate QR image for the new URL
+    const qrColor = original.customization?.qrColor || '#000000';
+    const bgColor = original.customization?.backgroundColor || '#FFFFFF';
+    const qrBuffer = await generateBaseQR(url, { qrColor, backgroundColor: bgColor });
+    const qrCodeData = bufferToDataURL(qrBuffer);
+
+    const duplicate = await QRCode.create({
+      userId: original.userId,
+      name: `${original.name} (Copy)`,
+      type: original.type,
+      tableNumber: null,
+      token,
+      qrCodeData,
+      url,
+      redirectUrl: url,
+      designConfig: original.designConfig,
+      restaurantName: original.restaurantName,
+      tagline: original.tagline,
+      category: original.category,
+      customization: original.customization,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'QR Code duplicated',
+      data: { qrCode: duplicate }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get redirect URL
+// @route   GET /api/qr/:id/redirect
+// @access  Private
+exports.getRedirectUrl = async (req, res, next) => {
+  try {
+    const qrCode = await QRCode.findById(req.params.id);
+    if (!qrCode) throw new ApiError('QR Code not found', 404);
+    if (qrCode.userId.toString() !== req.user.id) {
+      throw new ApiError('Not authorized', 403);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { redirectUrl: qrCode.redirectUrl || qrCode.url }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update redirect URL (dynamic QR)
+// @route   PUT /api/qr/:id/redirect
+// @access  Private
+exports.updateRedirectUrl = async (req, res, next) => {
+  try {
+    const qrCode = await QRCode.findById(req.params.id);
+    if (!qrCode) throw new ApiError('QR Code not found', 404);
+    if (qrCode.userId.toString() !== req.user.id) {
+      throw new ApiError('Not authorized', 403);
+    }
+
+    const { url } = req.body;
+    if (!url) throw new ApiError('URL is required', 400);
+
+    qrCode.redirectUrl = url;
+    await qrCode.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Redirect URL updated',
+      data: { redirectUrl: qrCode.redirectUrl }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Delete QR code
 // @route   DELETE /api/qr/:id
 // @access  Private
 exports.deleteQRCode = async (req, res, next) => {
   try {
     const qrCode = await QRCode.findById(req.params.id);
-
-    if (!qrCode) {
-      throw new ApiError('QR Code not found', 404);
-    }
-
-    // Check ownership
+    if (!qrCode) throw new ApiError('QR Code not found', 404);
     if (qrCode.userId.toString() !== req.user.id) {
       throw new ApiError('Not authorized to delete this QR Code', 403);
     }
 
-    // Hard delete - permanently remove from database
     await QRCode.findByIdAndDelete(req.params.id);
 
     res.status(200).json({
@@ -189,23 +309,33 @@ exports.deleteQRCode = async (req, res, next) => {
 exports.trackScan = async (req, res, next) => {
   try {
     const { token } = req.params;
-
     const qrCode = await QRCode.findOne({ token, isActive: true });
 
-    if (!qrCode) {
-      throw new ApiError('QR Code not found or inactive', 404);
-    }
+    if (!qrCode) throw new ApiError('QR Code not found or inactive', 404);
 
     // Increment scan count
     qrCode.scans += 1;
     qrCode.lastScannedAt = new Date();
+
+    // Store scan event for analytics
+    qrCode.scanEvents.push({
+      timestamp: new Date(),
+      userAgent: req.headers['user-agent'] || 'unknown',
+      referer: req.headers.referer || null,
+    });
+
+    // Keep only last 500 scan events to avoid document bloat
+    if (qrCode.scanEvents.length > 500) {
+      qrCode.scanEvents = qrCode.scanEvents.slice(-500);
+    }
+
     await qrCode.save();
 
     res.status(200).json({
       success: true,
       message: 'Scan tracked successfully',
       data: {
-        url: qrCode.url,
+        url: qrCode.redirectUrl || qrCode.url,
         tableNumber: qrCode.tableNumber
       }
     });
@@ -238,4 +368,3 @@ exports.getAvatars = async (req, res, next) => {
     next(error);
   }
 };
-

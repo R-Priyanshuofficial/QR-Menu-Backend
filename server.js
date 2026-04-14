@@ -32,8 +32,8 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve static files for avatars and uploads
 app.use('/avatars', express.static('public/avatars'));
@@ -57,6 +57,7 @@ app.use('/api/dashboard', require('./src/routes/dashboardRoutes'));
 app.use('/api/analytics', require('./src/routes/analyticsRoutes'));
 app.use('/api/qr', require('./src/routes/qrRoutes'));
 app.use('/api/qr', require('./src/routes/qrDesignRoutes')); // AI design generation
+app.use('/qr', require('./src/routes/qrRedirectRoute')); // Dynamic QR redirect
 app.use('/api/menu', require('./src/routes/menuRoutes'));
 app.use('/api/orders', require('./src/routes/orderRoutes'));
 app.use('/api/printer', require('./src/routes/printerRoutes')); // Thermal printer routes

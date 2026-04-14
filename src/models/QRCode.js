@@ -33,6 +33,11 @@ const qrCodeSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  // Dynamic QR: changeable redirect URL (separate from the encoded URL)
+  redirectUrl: {
+    type: String,
+    default: null
+  },
   scans: {
     type: Number,
     default: 0
@@ -44,7 +49,36 @@ const qrCodeSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  // QR Code Customization Options
+  // ─── NEW: Full Design Config (single source of truth) ───
+  designConfig: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  restaurantName: {
+    type: String,
+    trim: true
+  },
+  tagline: {
+    type: String,
+    trim: true
+  },
+  category: {
+    type: String,
+    enum: ['restaurant', 'cafe', 'bar', 'bakery', 'cloud-kitchen', 'food-truck', 'other'],
+    default: 'restaurant'
+  },
+  // Brand theme reference
+  brandThemeId: {
+    type: String,
+    default: null
+  },
+  // Scan analytics events
+  scanEvents: [{
+    timestamp: { type: Date, default: Date.now },
+    userAgent: String,
+    referer: String,
+  }],
+  // Legacy: basic customization (kept for backward compat)
   customization: {
     logoUrl: {
       type: String,
@@ -52,7 +86,6 @@ const qrCodeSchema = new mongoose.Schema({
     },
     borderStyle: {
       type: String,
-      enum: ['none', 'square', 'rounded', 'circular'],
       default: 'none'
     },
     borderColor: {
@@ -81,8 +114,7 @@ const qrCodeSchema = new mongoose.Schema({
 });
 
 // Index for faster queries
-// Note: token index is automatically created by unique: true
 qrCodeSchema.index({ userId: 1, isActive: 1 });
+qrCodeSchema.index({ token: 1 });
 
 module.exports = mongoose.model('QRCode', qrCodeSchema);
-
