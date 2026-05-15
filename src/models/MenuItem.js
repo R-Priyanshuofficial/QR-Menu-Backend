@@ -1,5 +1,19 @@
 const mongoose = require('mongoose');
 
+const variantSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true },
+  price: { type: Number, required: true, min: 0 },
+  isDefault: { type: Boolean, default: false },
+  isAvailable: { type: Boolean, default: true },
+}, { _id: true });
+
+const addonSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true },
+  price: { type: Number, required: true, min: 0 },
+  isRequired: { type: Boolean, default: false },
+  maxQuantity: { type: Number, default: 1, min: 1 },
+}, { _id: true });
+
 const menuItemSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -58,6 +72,75 @@ const menuItemSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+
+  // ── Extended Fields ──
+  tags: {
+    type: [String],
+    default: []
+  },
+  badge: {
+    type: String,
+    enum: ['none', 'bestseller', 'new', 'chef-special', 'trending'],
+    default: 'none'
+  },
+  comparePrice: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  offerPrice: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  taxPercent: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  costPrice: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  variants: {
+    type: [variantSchema],
+    default: []
+  },
+  addons: {
+    type: [addonSchema],
+    default: []
+  },
+  availability: {
+    status: {
+      type: String,
+      enum: ['in-stock', 'out-of-stock', 'hidden', 'seasonal'],
+      default: 'in-stock'
+    },
+    timeSlots: {
+      type: [String],
+      default: ['all-day']
+    }
+  },
+  sku: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  calories: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  servingSize: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  sortOrder: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true

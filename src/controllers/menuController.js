@@ -601,33 +601,63 @@ exports.getOwnerMenu = async (req, res, next) => {
       : req.user._id;
 
     const items = await MenuItem.find({ userId, isActive: true })
-      .sort({ category: 1, name: 1 });
+      .sort({ category: 1, sortOrder: 1, name: 1 });
 
     res.status(200).json({
       success: true,
       count: items.length,
       data: {
-        items: items.map(item => ({
-          id: item._id,
-          name: item.name,
-          description: item.description,
-          price: item.price,
-          currency: item.currency || 'INR',
-          category: item.category,
-          image: item.image,
-          isAvailable: item.isAvailable,
-          isVeg: item.isVeg,
-          spiceLevel: item.spiceLevel,
-          preparationTime: item.preparationTime,
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt
-        }))
+        items: items.map(item => serializeItem(item))
       }
     });
   } catch (error) {
     next(error);
   }
 };
+
+// Helper to serialize a MenuItem document consistently
+function serializeItem(item) {
+  return {
+    id: item._id,
+    name: item.name,
+    description: item.description,
+    price: item.price,
+    currency: item.currency || 'INR',
+    category: item.category,
+    image: item.image,
+    isAvailable: item.isAvailable,
+    isVeg: item.isVeg,
+    spiceLevel: item.spiceLevel,
+    preparationTime: item.preparationTime,
+    tags: item.tags || [],
+    badge: item.badge || 'none',
+    comparePrice: item.comparePrice || 0,
+    offerPrice: item.offerPrice || 0,
+    taxPercent: item.taxPercent || 0,
+    costPrice: item.costPrice || 0,
+    variants: (item.variants || []).map(v => ({
+      _id: v._id,
+      name: v.name,
+      price: v.price,
+      isDefault: v.isDefault,
+      isAvailable: v.isAvailable,
+    })),
+    addons: (item.addons || []).map(a => ({
+      _id: a._id,
+      name: a.name,
+      price: a.price,
+      isRequired: a.isRequired,
+      maxQuantity: a.maxQuantity,
+    })),
+    availability: item.availability || { status: 'in-stock', timeSlots: ['all-day'] },
+    sku: item.sku || '',
+    calories: item.calories || 0,
+    servingSize: item.servingSize || '',
+    sortOrder: item.sortOrder || 0,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt
+  };
+}
 
 // @desc    Get public menu by slug
 // @route   GET /api/menu/:slug
@@ -680,18 +710,7 @@ exports.getPublicMenu = async (req, res, next) => {
           restaurantLogo: user.restaurantLogo
         },
         tableNumber,
-        items: items.map(item => ({
-          id: item._id,
-          name: item.name,
-          description: item.description,
-          price: item.price,
-          currency: item.currency || 'INR',
-          category: item.category,
-          image: item.image,
-          isVeg: item.isVeg,
-          spiceLevel: item.spiceLevel,
-          preparationTime: item.preparationTime
-        }))
+        items: items.map(item => serializeItem(item))
       }
     });
   } catch (error) {
@@ -704,10 +723,10 @@ exports.getPublicMenu = async (req, res, next) => {
 // @access  Private
 exports.addMenuItem = async (req, res, next) => {
   try {
-    const { name, description, price, currency, category, image, isVeg, spiceLevel, preparationTime } = req.body;
+    const { name, description, price, currency, category, image, isVeg, spiceLevel, preparationTime,
+      tags, badge, comparePrice, offerPrice, taxPercent, costPrice, variants, addons, availability, sku, calories, servingSize, sortOrder
+    } = req.body;
     const userId = req.user.id;
-
-    console.log('Adding menu item with currency:', currency);
 
     const item = await MenuItem.create({
       userId,
@@ -719,27 +738,26 @@ exports.addMenuItem = async (req, res, next) => {
       image: image || '',
       isVeg: isVeg !== undefined ? isVeg : true,
       spiceLevel: spiceLevel || 'none',
-      preparationTime: preparationTime || 15
+      preparationTime: preparationTime || 15,
+      tags: tags || [],
+      badge: badge || 'none',
+      comparePrice: comparePrice || 0,
+      offerPrice: offerPrice || 0,
+      taxPercent: taxPercent || 0,
+      costPrice: costPrice || 0,
+      variants: variants || [],
+      addons: addons || [],
+      availability: availability || { status: 'in-stock', timeSlots: ['all-day'] },
+      sku: sku || '',
+      calories: calories || 0,
+      servingSize: servingSize || '',
+      sortOrder: sortOrder || 0,
     });
 
     res.status(201).json({
       success: true,
       message: 'Menu item added successfully',
-      data: {
-        item: {
-          id: item._id,
-          name: item.name,
-          description: item.description,
-          price: item.price,
-          currency: item.currency,
-          category: item.category,
-          image: item.image,
-          isAvailable: item.isAvailable,
-          isVeg: item.isVeg,
-          spiceLevel: item.spiceLevel,
-          preparationTime: item.preparationTime
-        }
-      }
+      data: { item: serializeItem(item) }
     });
   } catch (error) {
     next(error);
@@ -762,9 +780,11 @@ exports.updateMenuItem = async (req, res, next) => {
       throw new ApiError('Not authorized to update this item', 403);
     }
 
-    const { name, description, price, currency, category, image, isAvailable, isVeg, spiceLevel, preparationTime } = req.body;
+    const { name, description, price, currency, category, image, isAvailable, isVeg, spiceLevel, preparationTime,
+      tags, badge, comparePrice, offerPrice, taxPercent, costPrice, variants, addons, availability, sku, calories, servingSize, sortOrder
+    } = req.body;
 
-    // Update fields
+    // Update original fields
     if (name !== undefined) item.name = name;
     if (description !== undefined) item.description = description;
     if (price !== undefined) item.price = price;
@@ -776,26 +796,27 @@ exports.updateMenuItem = async (req, res, next) => {
     if (spiceLevel !== undefined) item.spiceLevel = spiceLevel;
     if (preparationTime !== undefined) item.preparationTime = preparationTime;
 
+    // Update extended fields
+    if (tags !== undefined) item.tags = tags;
+    if (badge !== undefined) item.badge = badge;
+    if (comparePrice !== undefined) item.comparePrice = comparePrice;
+    if (offerPrice !== undefined) item.offerPrice = offerPrice;
+    if (taxPercent !== undefined) item.taxPercent = taxPercent;
+    if (costPrice !== undefined) item.costPrice = costPrice;
+    if (variants !== undefined) item.variants = variants;
+    if (addons !== undefined) item.addons = addons;
+    if (availability !== undefined) item.availability = availability;
+    if (sku !== undefined) item.sku = sku;
+    if (calories !== undefined) item.calories = calories;
+    if (servingSize !== undefined) item.servingSize = servingSize;
+    if (sortOrder !== undefined) item.sortOrder = sortOrder;
+
     await item.save();
 
     res.status(200).json({
       success: true,
       message: 'Menu item updated successfully',
-      data: {
-        item: {
-          id: item._id,
-          name: item.name,
-          description: item.description,
-          price: item.price,
-          currency: item.currency,
-          category: item.category,
-          image: item.image,
-          isAvailable: item.isAvailable,
-          isVeg: item.isVeg,
-          spiceLevel: item.spiceLevel,
-          preparationTime: item.preparationTime
-        }
-      }
+      data: { item: serializeItem(item) }
     });
   } catch (error) {
     next(error);
